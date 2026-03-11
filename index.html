@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YOUR NAME · Tesseract Portfolio</title>
+    <meta name="description" content="An Interstellar-themed 3D portfolio — navigate through the tesseract.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        :root {
+            --gold: #c8922a;
+            --amber: #ffaa30;
+            --copper: #b87333;
+            --warm: #f5deb3;
+            --dim: #1a0d02;
+            --black: #000;
+            --pink: #ff4488;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+            cursor: none
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            z-index: 0
+        }
+
+        /* ════════════ CURSOR (lerped in JS) ════════════ */
+        #cursor {
+            position: fixed;
+            z-index: 9999;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(200, 146, 42, .9);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: width .2s cubic-bezier(.4, 0, .2, 1), height .2s cubic-bezier(.4, 0, .2, 1), background .25s, border .25s;
+            box-shadow: 0 0 8px rgba(200, 146, 42, .7), 0 0 20px rgba(200, 146, 42, .15)
+        }
+
+        #cursor.hover {
+            width: 44px;
+            height: 44px;
+            background: transparent;
+            border: 2px solid var(--amber);
+            box-shadow: 0 0 25px rgba(255, 170, 48, .7), inset 0 0 12px rgba(255, 170, 48, .12),
+                0 0 60px rgba(255, 100, 0, .15)
+        }
+
+        /* ════════════ SCANLINES ════════════ */
+        #scanlines {
+            position: fixed;
+            inset: 0;
+            z-index: 4;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0, 0, 0, .06) 3px, rgba(0, 0, 0, .06) 4px);
+            mix-blend-mode: multiply
+        }
+
+        /* ════════════ FLASH ════════════ */
+        #flash {
+            position: fixed;
+            inset: 0;
+            z-index: 300;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(circle, rgba(255, 200, 80, .98) 0%, rgba(255, 80, 0, .7) 35%, rgba(0, 0, 0, .5) 70%, transparent 100%)
+        }
+
+        /* ════════════ VIGNETTE ════════════ */
+        #vignette {
+            position: fixed;
+            inset: 0;
+            z-index: 3;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .5) 100%)
+        }
+
+        /* ════════════════════════════════════════
+       BLACK HOLE PHASE
+    ════════════════════════════════════════ */
+        #bh-ui {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transition: opacity 1s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        #bh-name {
+            font-family: 'Orbitron', monospace;
+            font-weight: 900;
+            font-size: clamp(2rem, 6vw, 4.5rem);
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            text-shadow: 0 0 30px rgba(200, 146, 42, .9), 0 0 80px rgba(255, 100, 0, .5),
+                0 0 140px rgba(255, 50, 0, .2), 0 0 200px rgba(200, 146, 42, .1);
+            animation: nameFloat 4s ease-in-out infinite;
+            position: relative;
+            top: -10vh
+        }
+
+        #bh-role {
+            font-size: clamp(.55rem, 1.3vw, .78rem);
+            letter-spacing: .45em;
+            text-transform: uppercase;
+            color: rgba(200, 146, 42, .45);
+            margin-top: 12px;
+            position: relative;
+            top: -10vh;
+            animation: rolePulse 3s ease-in-out infinite
+        }
+
+        @keyframes nameFloat {
+
+            0%,
+            100% {
+                transform: translateY(0) scale(1)
+            }
+
+            50% {
+                transform: translateY(-8px) scale(1.005)
+            }
+        }
+
+        @keyframes rolePulse {
+
+            0%,
+            100% {
+                opacity: .45
+            }
+
+            50% {
+                opacity: .7
+            }
+        }
+
+        #bh-hint {
+            position: fixed;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            z-index: 100
+        }
+
+        #bh-hint .cta {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(.55rem, 1.3vw, .78rem);
+            letter-spacing: .3em;
+            color: var(--amber);
+            text-shadow: 0 0 18px rgba(255, 170, 48, .8), 0 0 40px rgba(255, 100, 0, .3);
+            animation: ctaBlink 2.8s ease-in-out infinite
+        }
+
+        #bh-hint .sub {
+            font-size: .52rem;
+            letter-spacing: .18em;
+            color: rgba(255, 255, 255, .18);
+            margin-top: 9px
+        }
+
+        @keyframes ctaBlink {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+
+            50% {
+                opacity: .25;
+                transform: scale(0.98)
+            }
+        }
+
+        /* ════════════════════════════════════════
+       TESSERACT HUD
+    ════════════════════════════════════════ */
+        #tess-ui {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        #tess-ui.visible {
+            opacity: 1;
+            pointer-events: all
+        }
+
+        /* ── Breadcrumb ── */
+        #breadcrumb {
+            position: absolute;
+            top: 28px;
+            left: 40px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: .58rem;
+            letter-spacing: .2em;
+            color: rgba(200, 146, 42, .4)
+        }
+
+        .bc-sep {
+            color: rgba(200, 146, 42, .2);
+            animation: sepPulse 2s ease-in-out infinite
+        }
+
+        @keyframes sepPulse {
+
+            0%,
+            100% {
+                opacity: .3
+            }
+
+            50% {
+                opacity: .8
+            }
+        }
+
+        .bc-item {
+            color: rgba(200, 146, 42, .45);
+            cursor: pointer;
+            transition: all .3s ease;
+            padding: 2px 0;
+            border-bottom: 1px solid transparent
+        }
+
+        .bc-item:hover {
+            color: var(--amber);
+            text-shadow: 0 0 10px rgba(255, 170, 48, .6);
+            border-bottom-color: rgba(200, 146, 42, .3)
+        }
+
+        .bc-item.current {
+            color: var(--amber);
+            text-shadow: 0 0 12px rgba(255, 170, 48, .5);
+            animation: bcGlow 2.5s ease-in-out infinite
+        }
+
+        @keyframes bcGlow {
+
+            0%,
+            100% {
+                text-shadow: 0 0 8px rgba(255, 170, 48, .4)
+            }
+
+            50% {
+                text-shadow: 0 0 18px rgba(255, 170, 48, .8)
+            }
+        }
+
+        /* ── Room label with glitch effect ── */
+        #room-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            transition: opacity .5s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        #room-label .rl-name {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(1.5rem, 3.5vw, 2.8rem);
+            font-weight: 900;
+            letter-spacing: .35em;
+            color: var(--warm);
+            position: relative;
+            text-shadow: 0 0 30px rgba(200, 146, 42, .8), 0 0 70px rgba(184, 115, 51, .4),
+                0 0 120px rgba(184, 115, 51, .15);
+            animation: labelReveal 0.8s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        @keyframes labelReveal {
+            0% {
+                opacity: 0;
+                transform: scale(0.85);
+                filter: blur(8px)
+            }
+
+            40% {
+                opacity: 0.6;
+                filter: blur(2px)
+            }
+
+            70% {
+                transform: scale(1.02);
+                filter: blur(0)
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+
+        #room-label .rl-sub {
+            font-size: .6rem;
+            letter-spacing: .35em;
+            color: rgba(200, 146, 42, .4);
+            margin-top: 10px;
+            text-transform: uppercase;
+            animation: subFade 1s .3s both cubic-bezier(.4, 0, .2, 1)
+        }
+
+        @keyframes subFade {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        /* ── Portal labels with continuous pulse ── */
+        .portal-label {
+            position: absolute;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            letter-spacing: .24em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: color .3s, text-shadow .3s, transform .3s cubic-bezier(.4, 0, .2, 1);
+            pointer-events: all;
+            user-select: none
+        }
+
+        .portal-label:hover {
+            transform: scale(1.12) !important
+        }
+
+        #portal-left {
+            left: 3.5vw;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: clamp(.7rem, 1.8vw, 1.05rem);
+            color: rgba(255, 68, 136, .7);
+            text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: .35em;
+            animation: portalPulseV 3s ease-in-out infinite
+        }
+
+        #portal-right {
+            right: 3.5vw;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: clamp(.7rem, 1.8vw, 1.05rem);
+            color: rgba(255, 68, 136, .7);
+            text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: .35em;
+            animation: portalPulseV 3s .5s ease-in-out infinite
+        }
+
+        #portal-down {
+            bottom: 7vh;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(.7rem, 1.8vw, 1.05rem);
+            color: rgba(255, 68, 136, .7);
+            text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+            animation: portalPulseH 3s 1s ease-in-out infinite
+        }
+
+        #portal-up {
+            top: 9vh;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(.7rem, 1.8vw, 1.05rem);
+            color: rgba(255, 68, 136, .7);
+            text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+            animation: portalPulseH 3s 1.5s ease-in-out infinite
+        }
+
+        @keyframes portalPulseV {
+
+            0%,
+            100% {
+                text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+                transform: translateY(-50%)
+            }
+
+            50% {
+                text-shadow: 0 0 28px rgba(255, 68, 136, .75), 0 0 60px rgba(255, 68, 136, .3);
+                transform: translateY(-50%) scale(1.03)
+            }
+        }
+
+        @keyframes portalPulseH {
+
+            0%,
+            100% {
+                text-shadow: 0 0 18px rgba(255, 68, 136, .45), 0 0 40px rgba(255, 68, 136, .15);
+                transform: translateX(-50%)
+            }
+
+            50% {
+                text-shadow: 0 0 28px rgba(255, 68, 136, .75), 0 0 60px rgba(255, 68, 136, .3);
+                transform: translateX(-50%) scale(1.03)
+            }
+        }
+
+        .portal-label:hover {
+            color: #ff5599 !important;
+            text-shadow: 0 0 35px rgba(255, 85, 153, .9), 0 0 70px rgba(255, 68, 136, .5) !important
+        }
+
+        /* Portal direction arrows */
+        .portal-label::before {
+            content: '';
+            display: block;
+            width: 28px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 68, 136, .5), transparent);
+            margin: 0 auto 10px;
+            animation: arrowPulse 2s ease-in-out infinite
+        }
+
+        #portal-up::before {
+            display: none
+        }
+
+        #portal-up::after {
+            content: '';
+            display: block;
+            width: 28px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 68, 136, .5), transparent);
+            margin: 10px auto 0;
+            animation: arrowPulse 2s ease-in-out infinite
+        }
+
+        @keyframes arrowPulse {
+
+            0%,
+            100% {
+                opacity: .4;
+                width: 28px
+            }
+
+            50% {
+                opacity: .9;
+                width: 35px
+            }
+        }
+
+        /* ── Back button ── */
+        #btn-back {
+            position: absolute;
+            top: 28px;
+            right: 40px;
+            font-family: 'Orbitron', monospace;
+            font-size: .55rem;
+            letter-spacing: .22em;
+            color: rgba(200, 146, 42, .4);
+            background: rgba(0, 0, 0, .25);
+            border: 1px solid rgba(200, 146, 42, .15);
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: all .35s cubic-bezier(.4, 0, .2, 1);
+            pointer-events: all;
+            backdrop-filter: blur(4px)
+        }
+
+        #btn-back:hover {
+            color: var(--amber);
+            border-color: rgba(200, 146, 42, .55);
+            background: rgba(200, 146, 42, .08);
+            box-shadow: 0 0 20px rgba(200, 146, 42, .2), inset 0 0 8px rgba(200, 146, 42, .05)
+        }
+
+        /* ════════════════════════════════════════
+       CONTENT PANEL (Glassmorphism)
+    ════════════════════════════════════════ */
+        #content-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.96);
+            width: min(640px, 88vw);
+            max-height: 70vh;
+            background: rgba(5, 2, 0, .7);
+            border: 1px solid rgba(184, 115, 51, .2);
+            border-radius: 6px;
+            padding: 34px;
+            overflow-y: auto;
+            opacity: 0;
+            pointer-events: all;
+            backdrop-filter: blur(12px) saturate(1.4);
+            -webkit-backdrop-filter: blur(12px) saturate(1.4);
+            box-shadow: 0 0 40px rgba(0, 0, 0, .6), 0 0 80px rgba(184, 115, 51, .06),
+                inset 0 0 30px rgba(184, 115, 51, .03);
+            transition: opacity .6s cubic-bezier(.4, 0, .2, 1), transform .6s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        #content-panel.visible {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1)
+        }
+
+        #content-panel::-webkit-scrollbar {
+            width: 3px
+        }
+
+        #content-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, .3)
+        }
+
+        #content-panel::-webkit-scrollbar-thumb {
+            background: rgba(200, 146, 42, .3);
+            border-radius: 2px
+        }
+
+        .cp-title {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(.9rem, 2.2vw, 1.4rem);
+            font-weight: 700;
+            letter-spacing: .24em;
+            color: var(--warm);
+            text-shadow: 0 0 20px rgba(184, 115, 51, .7), 0 0 50px rgba(184, 115, 51, .2);
+            border-bottom: 1px solid rgba(184, 115, 51, .2);
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+            animation: labelReveal .6s both
+        }
+
+        .cp-body {
+            font-size: .82rem;
+            line-height: 1.9;
+            color: rgba(255, 255, 255, .6);
+            animation: subFade .6s .15s both
+        }
+
+        /* ── Info Grid (Contact cards) ── */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            gap: 12px;
+            margin-top: 20px
+        }
+
+        .info-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: rgba(0, 0, 0, .45);
+            border: 1px solid rgba(184, 115, 51, .15);
+            border-radius: 4px;
+            padding: 16px;
+            text-decoration: none;
+            color: inherit;
+            transition: all .35s cubic-bezier(.4, 0, .2, 1);
+            animation: cardIn .5s both cubic-bezier(.4, 0, .2, 1)
+        }
+
+        .info-card:nth-child(1) {
+            animation-delay: .1s
+        }
+
+        .info-card:nth-child(2) {
+            animation-delay: .15s
+        }
+
+        .info-card:nth-child(3) {
+            animation-delay: .2s
+        }
+
+        .info-card:nth-child(4) {
+            animation-delay: .25s
+        }
+
+        .info-card:nth-child(5) {
+            animation-delay: .3s
+        }
+
+        .info-card:nth-child(6) {
+            animation-delay: .35s
+        }
+
+        @keyframes cardIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .info-card:hover {
+            border-color: rgba(200, 146, 42, .5);
+            background: rgba(200, 146, 42, .06);
+            box-shadow: 0 0 20px rgba(200, 146, 42, .08);
+            transform: translateY(-2px)
+        }
+
+        .c-icon {
+            font-size: 1.4rem;
+            flex-shrink: 0
+        }
+
+        .c-label {
+            font-family: 'Orbitron', monospace;
+            font-size: .6rem;
+            letter-spacing: .15em;
+            color: var(--warm)
+        }
+
+        .c-val {
+            font-size: .68rem;
+            color: rgba(255, 255, 255, .35);
+            margin-top: 3px
+        }
+
+        /* ── Skill bars ── */
+        .skill-row {
+            margin-bottom: 14px;
+            animation: cardIn .4s both
+        }
+
+        .skill-row:nth-child(2) {
+            animation-delay: .05s
+        }
+
+        .skill-row:nth-child(3) {
+            animation-delay: .1s
+        }
+
+        .skill-row:nth-child(4) {
+            animation-delay: .15s
+        }
+
+        .skill-row:nth-child(5) {
+            animation-delay: .2s
+        }
+
+        .skill-row:nth-child(6) {
+            animation-delay: .25s
+        }
+
+        .skill-row:nth-child(7) {
+            animation-delay: .3s
+        }
+
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: .68rem;
+            letter-spacing: .08em;
+            color: rgba(255, 255, 255, .55);
+            margin-bottom: 6px
+        }
+
+        .skill-track {
+            height: 3px;
+            background: rgba(255, 255, 255, .06);
+            border-radius: 2px;
+            overflow: hidden
+        }
+
+        .skill-fill {
+            height: 3px;
+            border-radius: 2px;
+            width: 0;
+            background: linear-gradient(90deg, var(--copper), var(--amber), var(--gold));
+            box-shadow: 0 0 8px rgba(200, 146, 42, .5), 0 0 20px rgba(200, 146, 42, .2);
+            transition: width 1.4s cubic-bezier(.25, .8, .25, 1)
+        }
+
+        /* ── Link buttons ── */
+        .link-btn {
+            display: inline-block;
+            font-family: 'Orbitron', monospace;
+            font-size: .58rem;
+            letter-spacing: .2em;
+            padding: 11px 24px;
+            border: 1px solid rgba(200, 146, 42, .3);
+            color: var(--amber);
+            text-decoration: none;
+            margin: 8px 8px 0 0;
+            transition: all .35s cubic-bezier(.4, 0, .2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden
+        }
+
+        .link-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(200, 146, 42, .08), transparent);
+            transform: translateX(-100%);
+            transition: transform .5s
+        }
+
+        .link-btn:hover::before {
+            transform: translateX(100%)
+        }
+
+        .link-btn:hover {
+            background: rgba(200, 146, 42, .08);
+            border-color: rgba(200, 146, 42, .6);
+            box-shadow: 0 0 20px rgba(200, 146, 42, .2)
+        }
+
+        /* ── Nav hint ── */
+        #nav-hint {
+            position: absolute;
+            bottom: 28px;
+            right: 40px;
+            font-size: .52rem;
+            letter-spacing: .18em;
+            color: rgba(255, 255, 255, .15);
+            pointer-events: none;
+            text-align: right;
+            animation: hintFade 2s infinite alternate
+        }
+
+        @keyframes hintFade {
+            from {
+                opacity: .12
+            }
+
+            to {
+                opacity: .25
+            }
+        }
+
+        /* ── Responsive ── */
+        @media(max-width:600px) {
+            #portal-left {
+                left: 2vw;
+                font-size: .6rem
+            }
+
+            #portal-right {
+                right: 2vw;
+                font-size: .6rem
+            }
+
+            #breadcrumb {
+                left: 15px;
+                font-size: .5rem
+            }
+
+            #btn-back {
+                right: 15px;
+                font-size: .5rem;
+                padding: 7px 12px
+            }
+
+            #content-panel {
+                padding: 22px;
+                width: 92vw
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="cursor"></div>
+    <div id="scanlines"></div>
+    <div id="flash"></div>
+    <div id="vignette"></div>
+
+    <!-- BLACK HOLE UI -->
+    <div id="bh-ui">
+        <div id="bh-name">YOUR NAME</div>
+        <div id="bh-role">Full Stack Developer · Creative Technologist</div>
+    </div>
+    <div id="bh-hint">
+        <div class="cta">↓ CLICK THE SINGULARITY TO ENTER ↓</div>
+        <div class="sub">Gravitational Collapse · Spacetime Folding · 4th Dimensional Transcendence</div>
+    </div>
+
+    <!-- TESSERACT HUD -->
+    <div id="tess-ui">
+        <div id="breadcrumb"></div>
+        <button id="btn-back" onclick="navigateBack()">↩ BACK</button>
+        <div id="room-label">
+            <div class="rl-name" id="rl-name-text">HOME</div>
+            <div class="rl-sub" id="rl-sub-text">Tesseract Navigation Active</div>
+        </div>
+        <div class="portal-label" id="portal-left" onclick="goPortal('left')"></div>
+        <div class="portal-label" id="portal-right" onclick="goPortal('right')"></div>
+        <div class="portal-label" id="portal-down" onclick="goPortal('down')"></div>
+        <div class="portal-label" id="portal-up" onclick="goPortal('up')"></div>
+        <div id="content-panel"></div>
+        <div id="nav-hint">ARROW KEYS · CLICK PORTALS · ESC TO GO BACK</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
